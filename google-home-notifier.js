@@ -2,26 +2,81 @@ var Client = require('castv2-client').Client;
 var DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver;
 var mdns = require('mdns');
 var browser = mdns.createBrowser(mdns.tcp('googlecast'));
-var deviceAddress;
-var language;
+var os = require('os');
+// Imports the Google Cloud client library
+const textToSpeech = require('@google-cloud/text-to-speech');
+// Import other required libraries
+const fs = require('fs');
+const util = require('util');
 
-var device = function(name, lang = 'en') {
-    device = name;
-    language = lang;
-    return this;
+var serverPort;
+var languageCode;
+var voiceName;
+var voicePitch;
+var voiceSpeakingRate;
+var deviceAddress;
+var localAddress;
+
+var language = function(lang = 'ja-JP', name = 'ja-JP-Wavenet-B', pitch = -3.2, speakingRate = 1.11) {
+  languageCode = lang;
+  voiceName = name;
+  voicePitch = pitch;
+  voiceSpeakingRate = speakingRate;
+  return this;
 };
 
-var ip = function(ip, lang = 'en') {
+var device = function(name = '', ip = '192.168.0.4') {
+  device = name;
   deviceAddress = ip;
-  language = lang;
   return this;
-}
+};
 
-var googletts = require('google-tts-api');
-var googlettsaccent = 'us';
-var accent = function(accent) {
-  googlettsaccent = accent;
+var server = function(port = 8080, ip = getLocalAddress()[0].address) {
+  serverPort = port;
+  localAddress = ip;
   return this;
+};
+
+function getLocalAddress() {
+  var ipv4 = [];
+  var interfaces = os.networkInterfaces();
+
+  for (var dev in interfaces) {
+    interfaces[dev].forEach(function(details){
+      if (!details.internal){
+        switch(details.family){
+        case "IPv4":
+          ipv4.push({name:dev, address:details.address});
+          break;
+        }
+      }
+    });
+  }
+  return ipv4;
+};
+
+const client = new textToSpeech.TextToSpeechClient();
+async function synthesis(text) {
+
+  // Construct the request
+  const request = {
+    input: {text: text},
+    // Select the language and SSML voice gender (optional)
+    voice: {languageCode: languageCode, name: voiceName},
+    // select the type of audio encoding
+    audioConfig: {audioEncoding: 'MP3', // 'LINEAR16'
+                  effectsProfileId: ['medium-bluetooth-speaker-class-device'],
+                  pitch: voicePitch,
+                  speakingRate: voiceSpeakingRate
+                 },
+  };
+
+  // Performs the text-to-speech request
+  const [response] = await client.synthesizeSpeech(request);
+  // Write the binary audio content to a local file
+  const writeFile = util.promisify(fs.writeFile);
+  await writeFile('public/output.mp3', response.audioContent, 'binary');
+  return 'http://' + localAddress + ':' + serverPort + '/output.mp3';
 }
 
 var notify = function(message, callback) {
@@ -65,7 +120,7 @@ var play = function(mp3_url, callback) {
 };
 
 var getSpeechUrl = function(text, host, callback) {
-  googletts(text, language, 1, 1000, googlettsaccent).then(function (url) {
+  synthesis(text).then(function (url) {
     onDeviceUp(host, url, function(res){
       callback(res)
     });
@@ -75,9 +130,9 @@ var getSpeechUrl = function(text, host, callback) {
 };
 
 var getPlayUrl = function(url, host, callback) {
-    onDeviceUp(host, url, function(res){
-      callback(res)
-    });
+  onDeviceUp(host, url, function(res){
+    callback(res)
+  });
 };
 
 var onDeviceUp = function(host, url, callback) {
@@ -104,8 +159,9 @@ var onDeviceUp = function(host, url, callback) {
   });
 };
 
-exports.ip = ip;
+exports.language = language;
 exports.device = device;
-exports.accent = accent;
+exports.server = server;
 exports.notify = notify;
 exports.play = play;
+exports.synthesis = synthesis;

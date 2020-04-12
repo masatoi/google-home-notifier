@@ -1,6 +1,6 @@
 {
   "name": "google-home-notifier",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "",
   "main": "google-home-notifier.js",
   "scripts": {
@@ -16,9 +16,9 @@
   "dependencies": {
     "body-parser": "^1.15.2",
     "castv2-client": "^1.1.2",
-    "express": "^4.14.0",
-    "google-tts-api": "0.0.2",
+    "express": "^4.17.1",
     "mdns": "^2.3.3",
-    "ngrok": "^2.2.4"
+    "ngrok": "^2.2.4",
+    "@google-cloud/text-to-speech": "^2.3.0"
   }
 }
